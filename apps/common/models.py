@@ -8,4 +8,4 @@ class TimeStampedUUIDModel(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        abstract = True # This means it won't create a table in DB, just a template
+        abstract = True

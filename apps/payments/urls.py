@@ -1,6 +1,9 @@
 from django.urls import path
-from .views import CreateCheckoutSessionView
+from .views import InitiateCashPaymentView, ConfirmPaymentReceivedView
 
 urlpatterns = [
-    path('create-session/<uuid:booking_id>/', CreateCheckoutSessionView.as_view(), name='create-checkout'),
+    # User selects Cash
+    path('initiate-cash/<uuid:booking_id>/', InitiateCashPaymentView.as_view(), name='initiate-cash'),
+    # Provider confirms Cash Received
+    path('confirm-receipt/<uuid:booking_id>/', ConfirmPaymentReceivedView.as_view(), name='confirm-receipt'),
 ]

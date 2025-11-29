@@ -1,0 +1,618 @@
+{% extends 'base.html' %}
+
+{% block title %}LocalPro | Hire Professionals{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* Hero Section Background */
+    .hero-bg { 
+        background-image: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('https://images.unsplash.com/photo-1605218427368-351816b553e5?q=80&w=2000&auto=format&fit=crop'); 
+        background-size: cover; 
+        background-position: center; 
+    }
+    
+    /* Chat Bubbles */
+    .msg-bubble-me { background: #1dbf73; color: white; border-radius: 12px 12px 0 12px; }
+    .msg-bubble-other { background: #f1f5f9; color: #334155; border-radius: 12px 12px 12px 0; }
+    
+    /* Animation for Modals */
+    @keyframes bounceIn {
+        0% { opacity: 0; transform: scale(0.3); }
+        50% { opacity: 1; transform: scale(1.05); }
+        70% { transform: scale(0.9); }
+        100% { transform: scale(1); }
+    }
+    .animate-bounce-in { animation: bounceIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55); }
+
+    /* Rich Text Styling (For Service Descriptions) */
+    .prose p { margin-bottom: 0.75rem; line-height: 1.6; color: #475569; }
+    .prose ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1rem; }
+    .prose ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 1rem; }
+    .prose strong { font-weight: 700; color: #0f172a; }
+    .prose em { font-style: italic; }
+    .prose h1, .prose h2, .prose h3 { font-weight: 800; margin-top: 1.5rem; margin-bottom: 0.5rem; color: #1e293b; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<main id="app-view" class="min-h-[calc(100vh-80px)] pb-20"></main>
+
+<div id="gig-modal" class="modal fixed inset-0 bg-white z-[55] hidden opacity-0 pointer-events-none overflow-y-auto">
+    <div class="max-w-7xl mx-auto px-4 py-6 relative">
+        <button onclick="UI.toggleModal('gig-modal', false)" class="fixed top-6 right-6 bg-white border border-gray-200 text-slate-600 w-10 h-10 rounded-full shadow-lg z-50 hover:bg-slate-50 hover:text-red-500 transition flex items-center justify-center">
+            <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+        <div id="gig-content" class="grid grid-cols-1 lg:grid-cols-3 gap-12 mt-8 pb-20"></div>
+    </div>
+</div>
+
+<div id="seller-modal" class="modal fixed inset-0 bg-slate-900/50 z-[60] hidden flex items-center justify-center opacity-0 pointer-events-none backdrop-blur-sm">
+    <div class="modal-content bg-white w-full max-w-md rounded-2xl shadow-2xl p-8 relative">
+        <button onclick="UI.toggleModal('seller-modal', false)" class="absolute top-4 right-4 text-gray-400 hover:text-red-500 transition"><i class="fa-solid fa-xmark text-xl"></i></button>
+        <h2 class="text-2xl font-extrabold text-slate-800 mb-2">Become a Seller</h2>
+        <p class="text-sm text-gray-500 mb-6">Start selling your services today.</p>
+        
+        <form onsubmit="Auth.becomeSeller(event)" class="space-y-4">
+            <div>
+                <label class="block text-sm font-bold text-slate-700 mb-1">Business Name</label>
+                <input id="s-name" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand outline-none transition" required placeholder="e.g. Mario's Plumbing">
+            </div>
+            <div>
+                <label class="block text-sm font-bold text-slate-700 mb-1">Bio</label>
+                <textarea id="s-bio" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand outline-none transition" rows="3" required placeholder="Tell us about your skills..."></textarea>
+            </div>
+            <div>
+                <label class="block text-sm font-bold text-slate-700 mb-1">City</label>
+                <input id="s-city" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand outline-none transition" required placeholder="e.g. New York">
+            </div>
+            <button class="w-full bg-brand hover:bg-green-600 text-white py-3 rounded-xl font-bold transition shadow-lg">Register as Seller</button>
+        </form>
+    </div>
+</div>
+
+<div id="chat-widget" class="fixed bottom-0 right-4 md:right-8 z-[100] w-80 md:w-96 bg-white rounded-t-xl shadow-[0_-5px_20px_rgba(0,0,0,0.15)] border border-gray-200 transform translate-y-[calc(100%-3.5rem)] transition-transform duration-300 hidden">
+    <div class="bg-white p-4 border-b border-gray-200 flex justify-between items-center cursor-pointer rounded-t-xl hover:bg-slate-50 transition" onclick="Chat.toggle()">
+        <div class="flex items-center gap-3">
+            <div class="relative">
+                <div class="w-9 h-9 rounded-full bg-brand text-white flex items-center justify-center font-bold text-sm" id="chat-initial">?</div>
+                <span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full animate-pulse"></span>
+            </div>
+            <div>
+                <h4 class="font-bold text-sm text-slate-800" id="chat-partner">Messaging</h4>
+                <span class="text-[10px] text-green-600 font-bold flex items-center gap-1">Live Chat</span>
+            </div>
+        </div>
+        <i class="fa-solid fa-chevron-up text-gray-400 transition-transform" id="chat-toggle-icon"></i>
+    </div>
+    <div class="h-96 flex flex-col bg-slate-50">
+        <div id="chat-history" class="flex-grow p-4 overflow-y-auto space-y-3"></div>
+        <form onsubmit="Chat.send(event)" class="p-3 bg-white border-t flex gap-2">
+            <input id="chat-input" class="flex-grow text-sm bg-slate-100 border-none rounded-full px-4 py-2 focus:ring-1 focus:ring-brand outline-none" placeholder="Type a message..." autocomplete="off">
+            <button class="bg-brand text-white w-9 h-9 rounded-full flex items-center justify-center hover:bg-brand-hover transition shadow-sm"><i class="fa-solid fa-paper-plane text-xs"></i></button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    const API_URL = 'http://127.0.0.1:8000/api/v1';
+    let currentUser = JSON.parse(localStorage.getItem('user'));
+    let token = localStorage.getItem('token');
+
+    // --- SHARED UTILS ---
+    const UI = {
+        toggleModal: (id, show) => {
+            const el = document.getElementById(id);
+            if(show) { el.classList.remove('hidden'); void el.offsetWidth; el.classList.add('active'); } 
+            else { el.classList.remove('active'); setTimeout(() => el.classList.add('hidden'), 200); }
+        },
+        toast: (msg, type='success') => {
+            const t = document.createElement('div');
+            const colors = type === 'error' ? 'bg-red-500' : 'bg-slate-800';
+            t.className = `p-4 rounded-lg shadow-xl text-white text-sm font-bold flex items-center gap-3 animate-bounce ${colors} min-w-[250px]`;
+            t.innerHTML = `<i class="fa-solid fa-check-circle"></i> ${msg}`;
+            document.getElementById('toast-container').appendChild(t);
+            setTimeout(() => t.remove(), 4000);
+        },
+        // SKELETON LOADER
+        loader: () => {
+            return Array(4).fill(0).map(() => `
+                <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm animate-pulse">
+                    <div class="h-48 bg-slate-200"></div>
+                    <div class="p-5 space-y-3">
+                        <div class="flex items-center gap-2">
+                            <div class="w-6 h-6 rounded-full bg-slate-200"></div>
+                            <div class="h-3 w-24 bg-slate-200 rounded"></div>
+                        </div>
+                        <div class="h-4 w-full bg-slate-200 rounded"></div>
+                        <div class="h-4 w-2/3 bg-slate-200 rounded"></div>
+                        <div class="pt-4 flex justify-between items-center mt-auto">
+                            <div class="h-6 w-16 bg-slate-200 rounded"></div>
+                            <div class="h-4 w-12 bg-slate-200 rounded"></div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        },
+        renderStars: (rating) => {
+            let html = '<div class="flex text-yellow-400 text-xs">';
+            for(let i=1; i<=5; i++) {
+                if(i <= rating) html += '<i class="fa-solid fa-star"></i>';
+                else if(i - 0.5 <= rating) html += '<i class="fa-solid fa-star-half-stroke"></i>';
+                else html += '<i class="fa-regular fa-star text-gray-300"></i>';
+            }
+            return html + '</div>';
+        },
+        showQR: (token) => {
+            const div = document.createElement('div');
+            div.id = 'qr-overlay';
+            div.className = 'fixed inset-0 bg-slate-900/80 z-[70] flex items-center justify-center backdrop-blur-sm';
+            div.innerHTML = `
+                <div class="bg-white p-8 rounded-2xl text-center shadow-2xl animate-bounce-in relative">
+                    <button onclick="document.getElementById('qr-overlay').remove()" class="absolute top-4 right-4 text-gray-400 hover:text-red-500"><i class="fa-solid fa-xmark text-xl"></i></button>
+                    <h2 class="text-xl font-extrabold text-slate-800 mb-4">Show to Provider</h2>
+                    <div id="qrcode" class="border-4 border-slate-100 p-2 rounded-lg inline-block"></div>
+                    <p class="text-xs text-gray-400 mt-4 font-bold uppercase tracking-wider">Scan to Complete Job</p>
+                </div>`;
+            document.body.appendChild(div);
+            new QRCode(document.getElementById("qrcode"), { text: token, width: 200, height: 200 });
+        }
+    };
+
+    const API = {
+        fetch: async (endpoint, method='GET', body=null) => {
+            const opts = { method, headers: { 'Content-Type': 'application/json' } };
+            if(token) opts.headers['Authorization'] = `Bearer ${token}`;
+            if(body) opts.body = JSON.stringify(body);
+            try {
+                const res = await fetch(API_URL + endpoint, opts);
+                if(res.status === 401) { Auth.logout(); return null; }
+                const data = await res.json();
+                return res.ok ? data : Promise.reject(data);
+            } catch(e) { console.error(e); return null; }
+        }
+    };
+
+    // --- APP LOGIC ---
+    const App = {
+        init: async () => {
+            App.renderNav();
+            await App.goHome();
+            App.fetchCategories();
+        },
+
+        fetchCategories: async () => {
+            const cats = await API.fetch('/services/categories/');
+            if(cats) {
+                document.getElementById('cat-nav').innerHTML = cats.map(c => 
+                    `<a onclick="App.search('', '${c.id}')" class="cursor-pointer hover:text-brand transition whitespace-nowrap">${c.name}</a>`
+                ).join('');
+            }
+        },
+
+        renderNav: () => {
+            const nav = document.getElementById('auth-section');
+            if(currentUser) {
+                // Header navigation now handled in base.html global script
+                // but we keep this here just in case of specific overrides
+            }
+        },
+
+        goHome: async () => {
+            document.getElementById('app-view').innerHTML = `
+                <div class="hero-bg h-[550px] flex items-center justify-center text-center px-4 relative">
+                    <div class="absolute inset-0 bg-gradient-to-b from-black/40 to-transparent"></div>
+                    <div class="max-w-4xl text-white relative z-10 w-full">
+                        <h1 class="text-4xl md:text-6xl font-extrabold mb-8 tracking-tight">Find the perfect professional.</h1>
+                        <div class="bg-white p-2 rounded-2xl shadow-2xl flex flex-col md:flex-row gap-2 max-w-3xl mx-auto">
+                            <div class="flex-grow relative">
+                                <i class="fa-solid fa-magnifying-glass absolute left-4 top-4 text-gray-400"></i>
+                                <input id="hero-search" class="w-full pl-12 pr-4 py-3.5 outline-none text-slate-800 font-semibold rounded-xl" placeholder="What service are you looking for?">
+                            </div>
+                            <div class="w-px bg-gray-200 my-2 hidden md:block"></div>
+                            <div class="relative w-full md:w-64">
+                                <i class="fa-solid fa-location-dot absolute left-4 top-4 text-gray-400"></i>
+                                <input id="hero-city" class="w-full pl-12 pr-4 py-3.5 outline-none text-slate-800 font-semibold rounded-xl" placeholder="City (e.g. London)">
+                            </div>
+                            <button onclick="App.search()" class="bg-brand hover:bg-green-600 text-white px-8 py-3.5 rounded-xl font-bold text-lg transition shadow-md">Search</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="max-w-7xl mx-auto px-6 py-16"><h2 class="text-3xl font-extrabold text-slate-800 mb-8">Available Services</h2><div id="gig-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">${UI.loader()}</div></div>
+            `;
+            App.search(); 
+        },
+
+        search: async (query=null, catId='') => {
+            const searchQuery = query !== null ? query : document.getElementById('hero-search').value;
+            const city = document.getElementById('hero-city') ? document.getElementById('hero-city').value : '';
+
+            let url = `/services/search/?search=${searchQuery}&category__slug=${catId}`;
+            if(city) url += `&provider__city=${city}`;
+
+            const services = await API.fetch(url);
+            const grid = document.getElementById('gig-grid');
+            
+            if(!services || services.length === 0) { 
+                grid.innerHTML = `<div class="col-span-full py-20 text-center text-gray-500">No services found in this city.</div>`; 
+                return; 
+            }
+
+            grid.innerHTML = services.map(s => `
+                <div onclick="App.showGig('${s.id}')" class="group bg-white border border-gray-100 rounded-2xl overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col h-full">
+                    <div class="h-48 overflow-hidden relative bg-slate-100">
+                        <img src="${s.image || ''}" class="w-full h-full object-cover group-hover:scale-105 transition duration-500">
+                        <div class="absolute top-3 left-3 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold shadow-sm text-slate-700">
+                            <i class="fa-solid fa-location-dot text-brand mr-1"></i> ${s.provider_detail.city || 'Remote'}
+                        </div>
+                    </div>
+                    <div class="p-5 flex-grow flex flex-col">
+                        <div class="flex items-center gap-2 mb-3">
+                            <div class="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold overflow-hidden border border-white shadow-sm">
+                                ${s.provider_detail.profile_image ? 
+                                    `<img src="${s.provider_detail.profile_image}" class="w-full h-full object-cover">` : 
+                                    s.provider_detail.username[0]}
+                            </div>
+                            <a href="/public-profile.html?u=${s.provider_detail.username}" class="text-xs font-bold text-gray-500 hover:text-brand hover:underline" onclick="event.stopPropagation()">
+                                ${s.provider_detail.business_name || s.provider_detail.username}
+                            </a>
+                        </div>
+                        <h3 class="text-slate-800 font-bold mb-1 line-clamp-2 text-sm leading-snug">${s.title}</h3>
+                        <div class="mt-auto pt-4 flex justify-between items-center border-t border-gray-50">
+                            <span class="text-xl font-extrabold text-slate-800">$${s.price}</span>
+                            <div class="flex items-center gap-1 text-xs font-bold text-yellow-500">
+                                <i class="fa-solid fa-star"></i> ${s.provider_detail.rating} <span class="text-gray-300 font-medium">(${s.provider_detail.num_reviews})</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        },
+
+        showGig: async (id) => {
+            const allServices = await API.fetch('/services/search/');
+            const s = allServices.find(x => x.id === id);
+            if(!s) return;
+            
+            // Extract working hours
+            const start = s.provider_detail.working_start || '09:00';
+            const end = s.provider_detail.working_end || '17:00';
+
+            // Check if Owner
+            const isOwner = currentUser && currentUser.username === s.provider_detail.username;
+
+            UI.toggleModal('gig-modal', true);
+            const content = document.getElementById('gig-content');
+            
+            // Conditional Sidebar
+            let sidebarContent = '';
+            if (isOwner) {
+                sidebarContent = `
+                    <div class="sticky top-8 border border-gray-200 rounded-2xl p-6 shadow-xl bg-white text-center">
+                        <div class="w-16 h-16 bg-brand/10 text-brand rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
+                            <i class="fa-solid fa-briefcase"></i>
+                        </div>
+                        <h3 class="text-xl font-extrabold text-slate-900 mb-2">Your Service</h3>
+                        <p class="text-slate-500 text-sm mb-6">You are the provider of this service.</p>
+                        <a href="/provider/#gigs" class="block w-full bg-slate-100 text-slate-700 py-3 rounded-xl font-bold hover:bg-slate-200 transition">
+                            <i class="fa-solid fa-pen-to-square mr-2"></i> Manage Service
+                        </a>
+                    </div>
+                `;
+            } else {
+                // Booking Form with Split Date/Time
+                sidebarContent = `
+                    <div class="sticky top-8 border border-gray-200 rounded-2xl p-6 shadow-xl bg-white">
+                        <div class="flex justify-between items-center mb-6">
+                            <span class="text-4xl font-extrabold text-slate-900">$${s.price}</span>
+                        </div>
+                        <form onsubmit="App.bookService(event, '${s.id}')" class="space-y-4">
+                            
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 mb-1 uppercase">Date</label>
+                                    <input type="date" id="book-date" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand outline-none text-sm" required>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 mb-1 uppercase">Time (${start}-${end})</label>
+                                    <input type="time" id="book-time" min="${start}" max="${end}" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand outline-none text-sm" required>
+                                </div>
+                            </div>
+                            
+                            <div id="mini-map" class="h-48 rounded-xl border border-gray-300 bg-slate-100 overflow-hidden"></div>
+                            <input type="hidden" id="book-lat" value="0"><input type="hidden" id="book-lng" value="0">
+                            
+                            <button type="button" onclick="App.locateUser()" class="text-brand text-xs font-bold hover:underline flex items-center gap-1">
+                                <i class="fa-solid fa-location-crosshairs"></i> Use Current Location
+                            </button>
+                            
+                            <textarea id="book-desc" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand outline-none" placeholder="Describe your issue..." rows="3"></textarea>
+                            
+                            <button id="book-btn" class="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 transition shadow-lg text-lg">
+                                Request Appointment
+                            </button>
+                            <p class="text-xs text-center text-gray-400 mt-2 font-medium">Payment via Cash on Delivery</p>
+                        </form>
+                    </div>
+                `;
+            }
+
+            content.innerHTML = `
+                <div class="lg:col-span-2 space-y-6">
+                    <h1 class="text-3xl font-extrabold text-slate-900 leading-tight">${s.title}</h1>
+                    
+                    <div class="flex items-center gap-4 py-4 border-y border-gray-50">
+                        <a href="/public-profile.html?u=${s.provider_detail.username}" class="flex-shrink-0">
+                            <img src="${s.provider_detail.profile_image || 'https://via.placeholder.com/60'}" 
+                                 class="w-14 h-14 rounded-full object-cover border border-gray-200 hover:opacity-90 transition shadow-sm">
+                        </a>
+                        <div class="flex-grow">
+                            <h3 class="font-bold text-slate-800 flex items-center gap-2 text-lg">
+                                <a href="/public-profile.html?u=${s.provider_detail.username}" class="hover:text-brand transition">
+                                    ${s.provider_detail.business_name || s.provider_detail.username}
+                                </a>
+                                ${s.provider_detail.is_verified ? 
+                                    '<i class="fa-solid fa-circle-check text-blue-500 text-sm" title="Verified Provider"></i>' : ''}
+                            </h3>
+                            <div class="flex items-center gap-3 text-sm mt-1">
+                                <div class="flex items-center gap-1 text-yellow-500 font-bold">
+                                    <i class="fa-solid fa-star"></i> ${s.provider_detail.rating}
+                                </div>
+                                <span class="text-slate-400">(${s.provider_detail.num_reviews} reviews)</span>
+                                <span class="text-gray-300">|</span>
+                                <span class="text-slate-500 flex items-center gap-1">
+                                    <i class="fa-solid fa-location-dot text-brand"></i> ${s.provider_detail.city || 'Remote'}
+                                </span>
+                            </div>
+                        </div>
+                        <a href="/public-profile.html?u=${s.provider_detail.username}" class="hidden sm:block text-brand font-bold text-sm border border-brand/20 px-4 py-2 rounded-full hover:bg-brand hover:text-white transition">
+                            View Profile
+                        </a>
+                    </div>
+
+                    <div class="bg-slate-50 rounded-xl overflow-hidden border border-gray-100 shadow-sm">
+                        <img src="${s.image}" class="w-full object-cover max-h-[500px]">
+                    </div>
+                    
+                    <div class="prose text-slate-600 leading-relaxed text-lg">
+                        <h3 class="font-bold text-slate-800 mb-2">About This Service</h3>
+                        ${s.description}
+                    </div>
+                </div>
+                
+                <div class="lg:col-span-1">
+                    ${sidebarContent}
+                </div>
+            `;
+
+            if(!isOwner) {
+                setTimeout(() => {
+                    const map = L.map('mini-map').setView([40.7128, -74.0060], 10);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                    map.on('click', e => { 
+                        if(window.miniMarker) map.removeLayer(window.miniMarker);
+                        window.miniMarker = L.marker(e.latlng).addTo(map); 
+                        document.getElementById('book-lat').value = e.latlng.lat; 
+                        document.getElementById('book-lng').value = e.latlng.lng; 
+                    });
+                    setTimeout(() => map.invalidateSize(), 100);
+                }, 300);
+            }
+        },
+
+        locateUser: () => {
+            if (!navigator.geolocation) { alert("Geolocation not supported"); return; }
+            navigator.geolocation.getCurrentPosition(pos => {
+                document.getElementById('book-lat').value = pos.coords.latitude;
+                document.getElementById('book-lng').value = pos.coords.longitude;
+                UI.toast("Location captured!");
+            }, () => alert("Unable to retrieve location"));
+        },
+
+        bookService: async (e, id) => {
+            e.preventDefault();
+            if(!currentUser) { UI.toggleModal('gig-modal', false); window.location.href = '/login/'; return; }
+            
+            // Combine Date & Time
+            const dateVal = document.getElementById('book-date').value;
+            const timeVal = document.getElementById('book-time').value;
+            
+            if(!dateVal || !timeVal) { alert("Please select date and time."); return; }
+            const scheduled_date = `${dateVal}T${timeVal}`;
+
+            const payload = {
+                service_id: id, 
+                scheduled_date: scheduled_date,
+                latitude: document.getElementById('book-lat').value, longitude: document.getElementById('book-lng').value,
+                address: "Pinned Location", description: document.getElementById('book-desc').value
+            };
+            const bookingRes = await API.fetch('/bookings/create/', 'POST', payload);
+            if(bookingRes && bookingRes.id) {
+                await API.fetch(`/payments/initiate-cash/${bookingRes.id}/`, 'POST');
+                UI.toggleModal('gig-modal', false);
+                UI.toast("Request Sent Successfully!");
+                App.renderMyBookings();
+            }
+        },
+
+        renderMyBookings: async () => {
+            const bookings = await API.fetch('/bookings/my-bookings/');
+            document.getElementById('app-view').innerHTML = `
+                <div class="max-w-5xl mx-auto px-4 md:px-6 py-12">
+                    <h1 class="text-3xl font-extrabold text-slate-800 mb-8">My Orders</h1>
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden min-h-[400px]">
+                        ${bookings.length ? bookings.map(b => `
+                            <div class="p-6 border-b border-gray-100 flex justify-between items-center group hover:bg-slate-50 transition">
+                                <div class="flex items-center gap-4">
+                                    <div class="w-12 h-12 rounded-full bg-brand/10 text-brand flex items-center justify-center font-bold text-lg">
+                                        ${b.service_detail.title[0]}
+                                    </div>
+                                    <div>
+                                        <h3 class="font-bold text-slate-800">${b.service_detail.title}</h3>
+                                        <div class="flex items-center gap-2 mt-1">
+                                            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase ${b.status === 'COMPLETED' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}">${b.status}</span>
+                                            <span class="text-xs text-gray-400 font-medium">${new Date(b.created_at).toLocaleDateString()}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <button onclick="Chat.open('${b.id}', '')" class="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:text-brand hover:border-brand transition"><i class="fa-regular fa-comment"></i></button>
+                                    
+                                    ${b.status === 'ACCEPTED' || b.status === 'IN_PROGRESS' ? 
+                                    `<button onclick="UI.showQR('${b.qr_code_data}')" class="bg-slate-800 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-black transition shadow-lg flex items-center gap-2">
+                                        <i class="fa-solid fa-qrcode"></i> Show Code
+                                    </button>` : ''}
+                                    
+                                    ${b.status === 'COMPLETED' ? 
+                                        `<button onclick="Review.open('${b.id}')" class="text-yellow-500 font-bold hover:underline text-sm"><i class="fa-solid fa-star"></i> Leave Review</button>` 
+                                    : ''}
+                                </div>
+                            </div>`).join('') : '<p class="text-center py-10 text-gray-400">No orders yet.</p>'}
+                    </div>
+                </div>`;
+        }
+    };
+
+    // --- AUTH LOGIC ---
+    const Auth = {
+        logout: () => { 
+            localStorage.clear(); 
+            window.location.href = '/'; 
+        },
+        
+        renderBecomeSeller: () => UI.toggleModal('seller-modal', true),
+        
+        becomeSeller: async (e) => {
+            e.preventDefault();
+            const payload = {
+                business_name: document.getElementById('s-name').value,
+                bio: document.getElementById('s-bio').value,
+                city: document.getElementById('s-city').value
+            };
+            
+            const res = await API.fetch('/auth/become-provider/', 'POST', payload);
+            
+            if(res && res.id) {
+                localStorage.setItem('user', JSON.stringify(res));
+                alert("Congratulations! You are now a Seller.");
+                window.location.href = '/provider/'; // Redirect to dashboard
+            } else {
+                alert("Error upgrading account. Please try again.");
+            }
+        }
+    };
+
+    // --- CHAT LOGIC ---
+    const Chat = {
+        activeBookingId: null,
+        socket: null,
+        
+        open: (bookingId) => {
+            Chat.activeBookingId = bookingId;
+            document.getElementById('chat-widget').classList.remove('hidden');
+            const w = document.getElementById('chat-widget');
+            if (w.classList.contains('translate-y-[calc(100%-3.5rem)]')) {
+                w.classList.remove('translate-y-[calc(100%-3.5rem)]');
+            }
+            Chat.loadHistory();
+            Chat.connectSocket(bookingId);
+        },
+
+        toggle: () => {
+            const w = document.getElementById('chat-widget');
+            w.classList.toggle('translate-y-[calc(100%-3.5rem)]');
+        },
+        
+        connectSocket: (bookingId) => {
+            if(Chat.socket) Chat.socket.close();
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host;
+            Chat.socket = new WebSocket(`${protocol}//${host}/ws/chat/${bookingId}/`);
+            Chat.socket.onmessage = function(e) {
+                const data = JSON.parse(e.data);
+                Chat.appendMessage(data.message);
+            };
+        },
+
+        loadHistory: async () => {
+             const msgs = await API.fetch(`/chat/${Chat.activeBookingId}/messages/`);
+             document.getElementById('chat-history').innerHTML = '';
+             if(msgs) msgs.forEach(m => Chat.appendMessage(m));
+             Chat.scrollToBottom();
+        },
+
+        appendMessage: (m) => {
+            const isMe = m.sender === currentUser.id;
+            const div = document.createElement('div');
+            div.className = `p-3 my-2 max-w-[80%] rounded-xl text-sm break-words shadow-sm ${isMe ? 'ml-auto bg-brand text-white rounded-br-none' : 'mr-auto bg-slate-100 text-slate-800 rounded-bl-none'}`;
+            div.innerText = m.text;
+            document.getElementById('chat-history').appendChild(div);
+            Chat.scrollToBottom();
+        },
+        
+        scrollToBottom: () => {
+            const el = document.getElementById('chat-history');
+            el.scrollTop = el.scrollHeight;
+        },
+
+        send: async (e) => {
+            e.preventDefault();
+            const input = document.getElementById('chat-input');
+            if(!input.value) return;
+            if(Chat.socket && Chat.socket.readyState === WebSocket.OPEN) {
+                Chat.socket.send(JSON.stringify({ 'message': input.value }));
+                input.value = '';
+            } else {
+                alert("Connecting to chat... please wait.");
+            }
+        }
+    };
+
+    // --- REVIEW LOGIC ---
+    const Review = {
+        activeBookingId: null,
+        
+        open: (bookingId) => {
+            Review.activeBookingId = bookingId;
+            const div = document.createElement('div');
+            div.id = 'review-modal';
+            div.className = 'fixed inset-0 bg-slate-900/80 z-[70] flex items-center justify-center backdrop-blur-sm';
+            div.innerHTML = `
+                <div class="bg-white w-full max-w-md p-8 rounded-2xl text-center shadow-2xl animate-bounce-in relative">
+                    <button onclick="document.getElementById('review-modal').remove()" class="absolute top-4 right-4 text-gray-400 hover:text-red-500"><i class="fa-solid fa-xmark text-xl"></i></button>
+                    <h2 class="text-2xl font-extrabold text-slate-800 mb-2">Rate Provider</h2>
+                    <p class="text-slate-500 text-sm mb-6">How was the service?</p>
+                    <div class="flex justify-center gap-2 mb-6" id="star-container">
+                        ${[1,2,3,4,5].map(i => `<i onclick="Review.setStar(${i})" class="fa-solid fa-star text-3xl cursor-pointer text-gray-300 hover:text-yellow-400 transition" id="star-${i}"></i>`).join('')}
+                    </div>
+                    <input type="hidden" id="r-rating" value="0">
+                    <textarea id="r-comment" class="w-full p-3 border border-gray-200 rounded-xl mb-6 focus:ring-2 focus:ring-brand outline-none" rows="3" placeholder="Write a review..."></textarea>
+                    <button onclick="Review.submit()" class="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-brand transition">Submit Review</button>
+                </div>`;
+            document.body.appendChild(div);
+        },
+
+        setStar: (rating) => {
+            document.getElementById('r-rating').value = rating;
+            for(let i=1; i<=5; i++) {
+                const el = document.getElementById(`star-${i}`);
+                if(i <= rating) { el.classList.remove('text-gray-300'); el.classList.add('text-yellow-400'); }
+                else { el.classList.add('text-gray-300'); el.classList.remove('text-yellow-400'); }
+            }
+        },
+
+        submit: async () => {
+            const rating = document.getElementById('r-rating').value;
+            const comment = document.getElementById('r-comment').value;
+            if(rating == 0) { alert("Please select a star rating."); return; }
+            const res = await API.fetch(`/bookings/${Review.activeBookingId}/review/`, 'POST', { rating, comment });
+            if(res && res.id) { alert("Review Submitted!"); document.getElementById('review-modal').remove(); } 
+            else { alert("Error: Maybe you already reviewed this order?"); }
+        }
+    };
+
+    App.init();
+</script>
+{% endblock %}

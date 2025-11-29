@@ -1,0 +1,25 @@
+<aside class="w-64 bg-white border-r border-gray-200 fixed h-full z-20 hidden md:block">
+    <div class="p-6 h-20 flex items-center gap-2 font-extrabold text-xl">Local<span class="text-brand">Pro</span>.</div>
+    <nav class="p-4 space-y-1">
+        <a href="/provider/" class="flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-xl hover:bg-slate-50 cursor-pointer text-slate-600 hover:text-brand transition">
+            <i class="fa-solid fa-chart-pie w-5"></i> Dashboard
+        </a>
+        <a href="/provider/orders/" class="flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-xl hover:bg-slate-50 cursor-pointer text-slate-600 hover:text-brand transition">
+            <i class="fa-solid fa-clipboard-list w-5"></i> Orders
+        </a>
+        <a href="/provider/#gigs" onclick="if(window.Dashboard) Dashboard.render('gigs')" class="flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-xl hover:bg-slate-50 cursor-pointer text-slate-600 hover:text-brand transition">
+            <i class="fa-solid fa-briefcase w-5"></i> My Services
+        </a>
+        <a href="/provider/#settings" onclick="if(window.Dashboard) Dashboard.render('settings')" class="flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-xl hover:bg-slate-50 cursor-pointer text-slate-600 hover:text-brand transition">
+            <i class="fa-solid fa-gear w-5"></i> Settings
+        </a>
+        
+        <a onclick="window.location.href='/public-profile.html?u=' + user.username" class="flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-xl hover:bg-slate-50 cursor-pointer text-slate-600 hover:text-brand transition">
+            <i class="fa-solid fa-user-tag w-5"></i> My Public Profile
+        </a>
+        
+        <a href="/" class="flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-xl hover:bg-slate-50 cursor-pointer mt-8 text-slate-400 hover:text-brand transition">
+            <i class="fa-solid fa-arrow-right-from-bracket w-5"></i> Buying Mode
+        </a>
+    </nav>
+</aside>

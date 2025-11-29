@@ -1,0 +1,196 @@
+{% extends 'base.html' %}
+
+{% block title %}Orders | LocalPro{% endblock %}
+
+{% block extra_head %}
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+<style>
+    .msg-bubble-me { background: #1dbf73; color: white; border-radius: 12px 12px 0 12px; }
+    .msg-bubble-other { background: #f1f5f9; color: #334155; border-radius: 12px 12px 12px 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="flex min-h-screen bg-slate-50">
+    {% include 'partials/provider_sidebar.html' %}
+
+    <div class="flex-1 md:ml-64">
+        <header class="bg-white h-20 px-8 flex items-center justify-between sticky top-0 z-10 border-b border-gray-200 shadow-sm">
+            <h2 class="text-xl font-extrabold text-slate-800">Manage Orders</h2>
+            <button onclick="Scanner.open()" class="bg-slate-900 text-white px-5 py-2 rounded-full font-bold text-sm hover:bg-slate-700 transition flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
+                <i class="fa-solid fa-camera"></i> Scan to Verify
+            </button>
+        </header>
+        
+        <main class="p-8 max-w-7xl mx-auto">
+            <div id="orders-container" class="grid gap-4">
+                <div class="py-20 text-center text-gray-400"><i class="fa-solid fa-circle-notch fa-spin text-3xl mb-3"></i><p>Loading Orders...</p></div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<div id="scanner-modal" class="fixed inset-0 bg-black/90 z-[100] hidden flex items-center justify-center backdrop-blur-sm">
+    <div class="w-full max-w-md bg-white rounded-2xl overflow-hidden relative shadow-2xl">
+        <button onclick="Scanner.close()" class="absolute top-4 right-4 z-50 text-white bg-black/50 w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-500 transition"><i class="fa-solid fa-xmark"></i></button>
+        <div id="reader" class="w-full h-[400px] bg-black"></div>
+        <div class="p-6 text-center">
+            <h3 class="font-bold text-lg mb-1 text-slate-800">Scan Customer Code</h3>
+            <p class="text-sm text-gray-500">Align the code within the frame to verify job completion.</p>
+        </div>
+    </div>
+</div>
+
+<div id="chat-widget" class="fixed bottom-0 right-4 md:right-8 z-[100] w-80 md:w-96 bg-white rounded-t-xl shadow-[0_-5px_20px_rgba(0,0,0,0.15)] border border-gray-200 transform translate-y-[calc(100%-3.5rem)] transition-transform duration-300 hidden">
+    <div class="bg-white p-4 border-b border-gray-200 flex justify-between items-center cursor-pointer rounded-t-xl hover:bg-slate-50 transition" onclick="Chat.toggle()">
+        <div class="flex items-center gap-3">
+            <div class="relative">
+                <div class="w-9 h-9 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold text-sm">C</div>
+                <span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full animate-pulse"></span>
+            </div>
+            <div>
+                <h4 class="font-bold text-sm text-slate-800">Customer Chat</h4>
+                <span class="text-[10px] text-green-600 font-bold flex items-center gap-1">Live Now</span>
+            </div>
+        </div>
+        <i class="fa-solid fa-chevron-up text-gray-400 transition-transform" id="chat-toggle-icon"></i>
+    </div>
+    <div class="h-96 flex flex-col bg-slate-50">
+        <div id="chat-history" class="flex-grow p-4 overflow-y-auto space-y-3"></div>
+        <form onsubmit="Chat.send(event)" class="p-3 bg-white border-t flex gap-2">
+            <input id="chat-input" class="flex-grow text-sm bg-slate-100 border-none rounded-full px-4 py-2 focus:ring-1 focus:ring-brand outline-none" placeholder="Reply..." autocomplete="off">
+            <button class="bg-brand text-white w-9 h-9 rounded-full flex items-center justify-center hover:bg-brand-hover transition shadow-sm"><i class="fa-solid fa-paper-plane text-xs"></i></button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    const API_URL = 'http://127.0.0.1:8000/api/v1';
+    let token = localStorage.getItem('token');
+    let user = JSON.parse(localStorage.getItem('user'));
+    let html5QrcodeScanner = null;
+
+    if(!token || !user.is_provider) window.location.href = '/';
+
+    const API = {
+        fetch: async (endpoint, method='GET', body=null) => {
+            const opts = { method, headers: { 'Authorization': `Bearer ${token}` } };
+            if(body instanceof FormData) opts.body = body; else { opts.headers['Content-Type'] = 'application/json'; if(body) opts.body = JSON.stringify(body); }
+            try { return await (await fetch(API_URL + endpoint, opts)).json(); } catch(e) { return null; }
+        }
+    };
+
+    const Orders = {
+        init: async () => {
+            const orders = await API.fetch('/bookings/my-bookings/');
+            if(!orders || orders.length === 0) {
+                document.getElementById('orders-container').innerHTML = '<div class="text-center py-20 text-gray-400">No orders yet.</div>';
+                return;
+            }
+            
+            document.getElementById('orders-container').innerHTML = orders.map(o => `
+                <div class="bg-white p-6 rounded-2xl border border-gray-200 flex flex-col md:flex-row justify-between items-center shadow-sm hover:shadow-md transition gap-4">
+                    <div class="flex items-center gap-4 w-full md:w-auto">
+                        <div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center font-bold text-lg text-slate-500">${o.service_detail.title[0]}</div>
+                        <div>
+                            <h4 class="font-bold text-lg text-slate-800">${o.service_detail.title}</h4>
+                            <div class="flex items-center gap-2 mt-1">
+                                <span class="text-xs font-bold uppercase px-2 py-1 bg-slate-100 rounded text-slate-500">${o.status}</span>
+                                <span class="text-xs text-gray-400">${new Date(o.created_at).toLocaleDateString()}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex gap-3 w-full md:w-auto justify-end items-center">
+                        <button onclick="Chat.open('${o.id}')" class="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:text-brand hover:border-brand transition"><i class="fa-regular fa-comment"></i></button>
+
+                        ${o.status === 'REQUESTED' ? `<button onclick="Orders.updateStatus('${o.id}', 'ACCEPTED')" class="px-6 py-2 bg-brand text-white rounded-xl font-bold text-sm shadow-md hover:bg-green-600 transition">Accept Job</button>` : ''}
+                        
+                        ${o.status === 'ACCEPTED' ? `
+                            <button onclick="Scanner.open()" class="px-6 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm shadow-md hover:bg-slate-700 transition flex items-center gap-2">
+                                <i class="fa-solid fa-camera"></i> Verify & Complete
+                            </button>` : ''}
+                            
+                        ${o.status === 'COMPLETED' ? `<div class="text-green-500 font-bold flex items-center gap-2"><i class="fa-solid fa-check-circle"></i> Paid</div>` : ''}
+                    </div>
+                </div>`).join('');
+        },
+        updateStatus: async (id, status) => { 
+            await API.fetch(`/bookings/${id}/update-status/`, 'PATCH', { status }); 
+            Orders.init(); 
+        }
+    };
+
+    const Scanner = {
+        open: () => {
+            document.getElementById('scanner-modal').classList.remove('hidden');
+            html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+            html5QrcodeScanner.render(Scanner.onScanSuccess);
+        },
+        close: () => {
+            if(html5QrcodeScanner) html5QrcodeScanner.clear();
+            document.getElementById('scanner-modal').classList.add('hidden');
+        },
+        onScanSuccess: async (decodedText) => {
+            Scanner.close();
+            const res = await API.fetch('/bookings/verify/', 'POST', { token: decodedText });
+            if(res.status === 'success') { 
+                // PHASE 2 UPDATE: Confetti Trigger
+                confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+                alert("✅ Verified! Payment Released."); 
+                Orders.init(); 
+            } 
+            else { alert("❌ Error: " + res.error); }
+        }
+    };
+
+    const Chat = {
+        activeBookingId: null,
+        socket: null,
+        open: (bookingId) => {
+            Chat.activeBookingId = bookingId;
+            document.getElementById('chat-widget').classList.remove('hidden');
+            const w = document.getElementById('chat-widget');
+            if (w.classList.contains('translate-y-[calc(100%-3.5rem)]')) w.classList.remove('translate-y-[calc(100%-3.5rem)]');
+            Chat.loadHistory();
+            Chat.connectSocket(bookingId);
+        },
+        toggle: () => document.getElementById('chat-widget').classList.toggle('translate-y-[calc(100%-3.5rem)]'),
+        connectSocket: (bookingId) => {
+            if(Chat.socket) Chat.socket.close();
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host;
+            Chat.socket = new WebSocket(`${protocol}//${host}/ws/chat/${bookingId}/`);
+            Chat.socket.onmessage = function(e) { Chat.appendMessage(JSON.parse(e.data).message); };
+        },
+        loadHistory: async () => {
+             const msgs = await API.fetch(`/chat/${Chat.activeBookingId}/messages/`);
+             document.getElementById('chat-history').innerHTML = '';
+             if(msgs) msgs.forEach(m => Chat.appendMessage(m));
+             Chat.scrollToBottom();
+        },
+        appendMessage: (m) => {
+            const isMe = m.sender === user.id;
+            const div = document.createElement('div');
+            div.className = `p-3 my-2 max-w-[80%] rounded-xl text-sm break-words shadow-sm ${isMe ? 'ml-auto bg-brand text-white rounded-br-none' : 'mr-auto bg-slate-100 text-slate-800 rounded-bl-none'}`;
+            div.innerText = m.text;
+            document.getElementById('chat-history').appendChild(div);
+            Chat.scrollToBottom();
+        },
+        scrollToBottom: () => { const el = document.getElementById('chat-history'); el.scrollTop = el.scrollHeight; },
+        send: async (e) => {
+            e.preventDefault();
+            const input = document.getElementById('chat-input');
+            if(!input.value) return;
+            if(Chat.socket && Chat.socket.readyState === WebSocket.OPEN) {
+                Chat.socket.send(JSON.stringify({ 'message': input.value }));
+                input.value = '';
+            }
+        }
+    };
+
+    Orders.init();
+</script>
+{% endblock %}

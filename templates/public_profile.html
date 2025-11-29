@@ -1,0 +1,441 @@
+{% extends 'base.html' %}
+
+{% block title %}Profile | LocalPro{% endblock %}
+
+{% block extra_head %}
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+
+<style>
+    /* Rich Text Styling */
+    .prose p { margin-bottom: 0.75rem; line-height: 1.6; color: #475569; }
+    .prose ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1rem; }
+    .prose strong { font-weight: 700; color: #0f172a; }
+    
+    /* Animations */
+    .tab-btn { position: relative; transition: all 0.3s; }
+    .tab-btn::after {
+        content: ''; position: absolute; bottom: -2px; left: 0; width: 0%; height: 2px;
+        background-color: #1dbf73; transition: width 0.3s;
+    }
+    .tab-btn.active { color: #1dbf73; font-weight: 700; }
+    .tab-btn.active::after { width: 100%; }
+    
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="bg-slate-50 min-h-screen pb-20">
+    
+    <div class="h-80 bg-slate-900 relative group w-full overflow-hidden">
+        <img id="cover-img" src="" class="w-full h-full object-cover opacity-90 transition duration-700 hover:scale-105" onerror="this.src='https://images.unsplash.com/photo-1557683316-973673baf926?q=80&w=2000&auto=format&fit=crop'">
+        <div class="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent"></div>
+        
+        <button id="edit-cover-btn" onclick="document.getElementById('cover-upload').click()" class="hidden absolute bottom-6 right-6 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white px-5 py-2.5 rounded-full text-sm font-bold transition flex items-center gap-2 border border-white/20 shadow-xl">
+            <i class="fa-solid fa-camera"></i> Change Cover
+        </button>
+        <input type="file" id="cover-upload" class="hidden" accept="image/*" onchange="Profile.uploadImage('cover_image', this)">
+    </div>
+    
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 relative -mt-32 z-10">
+        <div class="bg-white rounded-3xl shadow-xl border border-gray-100 p-8 mb-8">
+            <div class="flex flex-col md:flex-row items-start gap-8">
+                
+                <div class="relative group flex-shrink-0 -mt-20 md:-mt-24">
+                    <img id="profile-img" src="" class="w-40 h-40 rounded-3xl object-cover border-[6px] border-white shadow-2xl bg-white">
+                    <button id="edit-avatar-btn" onclick="document.getElementById('avatar-upload').click()" class="hidden absolute bottom-2 right-2 bg-brand text-white w-10 h-10 rounded-full shadow-lg items-center justify-center hover:bg-green-600 transition border-2 border-white ring-2 ring-slate-100">
+                        <i class="fa-solid fa-camera"></i>
+                    </button>
+                    <input type="file" id="avatar-upload" class="hidden" accept="image/*" onchange="Profile.uploadImage('profile_image', this)">
+                </div>
+
+                <div class="flex-grow w-full pt-2">
+                    <div class="flex flex-col md:flex-row justify-between items-start gap-4">
+                        <div>
+                            <h1 class="text-4xl font-extrabold text-slate-900 tracking-tight mb-2" id="p-name">Loading...</h1>
+                            <div class="flex flex-wrap items-center gap-3 text-sm font-medium text-slate-500">
+                                <span id="p-role-badge" class="px-3 py-1 bg-slate-100 rounded-full text-xs uppercase font-bold tracking-wider">User</span>
+                                <span class="hidden md:inline">&bull;</span>
+                                <span id="p-location" class="flex items-center gap-1"><i class="fa-solid fa-location-dot text-brand"></i> <span id="loc-text">Remote</span></span>
+                                <span class="hidden md:inline">&bull;</span>
+                                <span id="p-joined">Joined recently</span>
+                            </div>
+                        </div>
+                        
+                        <div class="flex gap-3" id="action-buttons"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="stats-container" class="mt-8 pt-8 border-t border-gray-100 hidden grid-cols-1 sm:grid-cols-3 gap-6"></div>
+        </div>
+
+        <div id="profile-tabs" class="hidden mb-8 border-b border-gray-200">
+            <div class="flex gap-8">
+                <button onclick="Profile.switchTab('services')" id="tab-services" class="tab-btn active pb-3 text-sm font-medium text-slate-500 hover:text-slate-800">Services</button>
+                <button onclick="Profile.switchTab('reviews')" id="tab-reviews" class="tab-btn pb-3 text-sm font-medium text-slate-500 hover:text-slate-800">Reviews</button>
+                <button onclick="Profile.switchTab('about')" id="tab-about" class="tab-btn pb-3 text-sm font-medium text-slate-500 hover:text-slate-800">About</button>
+            </div>
+        </div>
+
+        <div id="profile-body" class="min-h-[300px]">
+            <div class="py-20 text-center">
+                <i class="fa-solid fa-circle-notch fa-spin text-4xl text-brand"></i>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<div id="gig-modal" class="modal fixed inset-0 bg-white z-[55] hidden opacity-0 pointer-events-none overflow-y-auto">
+    <div class="max-w-7xl mx-auto px-4 py-6 relative">
+        <button onclick="UI.toggleModal('gig-modal', false)" class="fixed top-6 right-6 bg-white border border-gray-200 text-slate-600 w-10 h-10 rounded-full shadow-lg z-50 hover:bg-slate-50 hover:text-red-500 transition flex items-center justify-center">
+            <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+        <div id="gig-content" class="grid grid-cols-1 lg:grid-cols-3 gap-12 mt-8 pb-20"></div>
+    </div>
+</div>
+
+<div id="create-modal" class="modal fixed inset-0 bg-slate-900/50 hidden z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl p-8 max-h-[90vh] overflow-y-auto relative">
+        <h2 class="text-2xl font-bold mb-6 text-slate-800">Create New Service</h2>
+        <form onsubmit="Profile.submitService(event)" class="space-y-6">
+            <div>
+                <label class="block text-sm font-bold text-slate-700 mb-1">Service Title</label>
+                <input id="c-title" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand outline-none transition" required>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div><label class="block text-sm font-bold text-slate-700 mb-1">Category</label><select id="c-cat" class="w-full p-3 border border-gray-300 rounded-xl bg-white"></select></div>
+                <div><label class="block text-sm font-bold text-slate-700 mb-1">Price ($)</label><input id="c-price" type="number" class="w-full p-3 border border-gray-300 rounded-xl" required></div>
+            </div>
+            <div>
+                <label class="block text-sm font-bold text-slate-700 mb-1">Description</label>
+                <div class="bg-white rounded-xl border border-gray-300 overflow-hidden"><div id="editor-container" class="h-40 font-sans text-base"></div></div>
+            </div>
+            <div>
+                <label class="block text-sm font-bold text-slate-700 mb-1">Location</label>
+                <div id="create-map" class="h-48 rounded-xl border border-gray-300 overflow-hidden"></div>
+                <input type="hidden" id="c-lat"><input type="hidden" id="c-lng">
+            </div>
+            <div>
+                <label class="block text-sm font-bold text-slate-700 mb-1">Cover Image</label>
+                <input id="c-img" type="file" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:bg-brand/10 file:text-brand">
+            </div>
+            <button class="w-full bg-brand text-white py-3.5 rounded-xl font-bold hover:bg-green-600 transition shadow-lg">Publish Service</button>
+        </form>
+        <button type="button" onclick="UI.toggleModal('create-modal', false)" class="absolute top-4 right-4 text-gray-400"><i class="fa-solid fa-xmark text-xl"></i></button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+<script>
+    const API_URL = 'http://127.0.0.1:8000/api/v1';
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetUsername = urlParams.get('u');
+    const currentUser = JSON.parse(localStorage.getItem('user'));
+    const token = localStorage.getItem('token');
+    const isOwner = currentUser && currentUser.username === targetUsername;
+    
+    let quill = null, createMap = null, createMarker = null;
+
+    const UI = {
+        toggleModal: (id, show) => {
+            const el = document.getElementById(id);
+            if(show) { el.classList.remove('hidden'); void el.offsetWidth; el.classList.add('active'); } 
+            else { el.classList.remove('active'); setTimeout(() => el.classList.add('hidden'), 200); }
+        },
+        toast: (msg) => {
+            const t = document.createElement('div');
+            t.className = `p-4 rounded-lg shadow-xl text-white text-sm font-bold flex items-center gap-3 animate-bounce bg-slate-800 min-w-[250px]`;
+            t.innerHTML = `<i class="fa-solid fa-check-circle"></i> ${msg}`;
+            document.getElementById('toast-container').appendChild(t);
+            setTimeout(() => t.remove(), 4000);
+        }
+    };
+
+    const API = {
+        fetch: async (endpoint, method='GET', body=null, isFile=false) => {
+            const headers = {};
+            if(token) headers['Authorization'] = `Bearer ${token}`;
+            if(!isFile) headers['Content-Type'] = 'application/json';
+            const opts = { method, headers };
+            if(body) opts.body = isFile ? body : JSON.stringify(body);
+            try { const res = await fetch(API_URL + endpoint, opts); return await res.json(); } catch(e) { return null; }
+        }
+    };
+
+    const Profile = {
+        data: null,
+        activeTab: 'services',
+
+        init: async () => {
+            if(!targetUsername) { window.location.href = '/'; return; }
+            const res = await API.fetch(`/auth/public/${targetUsername}/`);
+            if(!res || !res.user) { alert("User not found"); return; }
+            Profile.data = res;
+            // PHASE 8 UPDATE: Render header now calls async logic
+            await Profile.renderHeader();
+            
+            if (res.user.role === 'PROVIDER') Profile.renderProviderLayout();
+            else Profile.renderCustomerView();
+        },
+
+        renderHeader: async () => {
+            const u = Profile.data.user;
+            const p = u.provider_profile || {};
+            const c = u.customer_profile || {};
+
+            document.getElementById('profile-img').src = u.profile_image || 'https://via.placeholder.com/150';
+            if(u.cover_image) document.getElementById('cover-img').src = u.cover_image;
+
+            if(isOwner) {
+                document.getElementById('edit-cover-btn').classList.remove('hidden');
+                document.getElementById('edit-avatar-btn').classList.remove('hidden');
+                document.getElementById('edit-avatar-btn').classList.add('flex');
+            }
+
+            document.getElementById('p-name').innerText = p.business_name || u.username;
+            document.getElementById('loc-text').innerText = p.city || c.address || 'Remote';
+            document.getElementById('p-joined').innerText = `Joined ${new Date(u.date_joined).toLocaleDateString()}`;
+            
+            const badge = document.getElementById('p-role-badge');
+            badge.innerText = u.role === 'PROVIDER' ? 'Professional Seller' : 'Verified Buyer';
+            badge.className = `px-3 py-1 rounded-full text-xs uppercase font-bold tracking-wider text-white ${u.role === 'PROVIDER' ? 'bg-brand' : 'bg-blue-500'}`;
+
+            const actions = document.getElementById('action-buttons');
+            if(isOwner) {
+                let html = '';
+                if (u.role === 'PROVIDER') {
+                    html += `<button onclick="Profile.openCreateModal()" class="bg-brand hover:bg-green-600 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg transition flex items-center gap-2"><i class="fa-solid fa-plus"></i> Create Service</button>`;
+                }
+                html += `<a href="/profile/" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-6 py-2.5 rounded-xl font-bold transition">Edit Profile</a>`;
+                actions.innerHTML = html;
+            } else {
+                // PHASE 8 UPDATE: Check for existing booking to enable messaging
+                let msgBtn = `<button disabled class="bg-slate-200 text-slate-400 cursor-not-allowed px-6 py-2.5 rounded-xl font-bold shadow-none transition flex items-center gap-2" title="You must book a service first"><i class="fa-solid fa-lock"></i> Message</button>`;
+                
+                if (token) {
+                    const myBookings = await API.fetch('/bookings/my-bookings/');
+                    // Find if there is ANY booking involving this user
+                    const booking = myBookings.find(b => 
+                        (b.provider_detail.username === targetUsername) || 
+                        (b.customer_detail.username === targetUsername)
+                    );
+                    
+                    if (booking) {
+                        msgBtn = `<a href="/messages/?id=${booking.id}" class="bg-slate-900 hover:bg-slate-800 text-white px-6 py-2.5 rounded-xl font-bold shadow-lg transition flex items-center gap-2"><i class="fa-regular fa-envelope"></i> Message</a>`;
+                    }
+                }
+                actions.innerHTML = msgBtn;
+            }
+        },
+
+        renderProviderLayout: () => {
+            const p = Profile.data.user.provider_profile;
+            const stats = document.getElementById('stats-container');
+            stats.classList.remove('hidden');
+            stats.classList.add('grid');
+            stats.innerHTML = `
+                <div class="bg-slate-50 p-4 rounded-2xl flex items-center gap-4">
+                    <div class="w-12 h-12 bg-yellow-100 text-yellow-500 rounded-full flex items-center justify-center text-xl"><i class="fa-solid fa-star"></i></div>
+                    <div><p class="text-xs font-bold text-slate-400 uppercase">Rating</p><p class="text-xl font-extrabold text-slate-800">${p.rating} <span class="text-xs text-slate-400 font-normal">/ 5.0</span></p></div>
+                </div>
+                <div class="bg-slate-50 p-4 rounded-2xl flex items-center gap-4">
+                    <div class="w-12 h-12 bg-blue-100 text-blue-500 rounded-full flex items-center justify-center text-xl"><i class="fa-solid fa-clipboard-check"></i></div>
+                    <div><p class="text-xs font-bold text-slate-400 uppercase">Jobs Done</p><p class="text-xl font-extrabold text-slate-800">${p.num_reviews}</p></div>
+                </div>
+                <div class="bg-slate-50 p-4 rounded-2xl flex items-center gap-4">
+                    <div class="w-12 h-12 bg-purple-100 text-purple-500 rounded-full flex items-center justify-center text-xl"><i class="fa-solid fa-briefcase"></i></div>
+                    <div><p class="text-xs font-bold text-slate-400 uppercase">Experience</p><p class="text-xl font-extrabold text-slate-800">${p.years_experience} Years</p></div>
+                </div>
+            `;
+            document.getElementById('profile-tabs').classList.remove('hidden');
+            Profile.switchTab('services');
+        },
+
+        switchTab: (tab) => {
+            Profile.activeTab = tab;
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(`tab-${tab}`).classList.add('active');
+            const container = document.getElementById('profile-body');
+            const data = Profile.data;
+
+            if(tab === 'services') {
+                if(data.services.length === 0) {
+                    container.innerHTML = '<div class="py-12 text-center text-gray-400 animate-fade-in"><p>No active services.</p></div>';
+                    return;
+                }
+                container.innerHTML = `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">${data.services.map(s => `
+                    <div onclick="Profile.openGig('${s.id}')" class="bg-white border border-gray-100 rounded-2xl p-4 hover:shadow-lg transition cursor-pointer group">
+                        <div class="h-40 bg-slate-100 rounded-xl overflow-hidden mb-4 relative">
+                            <img src="${s.image || 'https://via.placeholder.com/300'}" class="w-full h-full object-cover group-hover:scale-105 transition duration-500">
+                            <div class="absolute top-2 right-2 bg-white/90 backdrop-blur-md px-2 py-1 rounded-lg text-xs font-bold shadow-sm">$${s.price}</div>
+                        </div>
+                        <h4 class="font-bold text-slate-800 text-lg mb-1 line-clamp-1">${s.title}</h4>
+                        <p class="text-sm text-slate-500 line-clamp-2">${s.description.replace(/<[^>]*>?/gm, '')}</p>
+                    </div>`).join('')}</div>`;
+            } else if(tab === 'reviews') {
+                if(data.reviews.length === 0) {
+                    container.innerHTML = '<div class="py-12 text-center text-gray-400 animate-fade-in"><p>No reviews yet.</p></div>';
+                    return;
+                }
+                container.innerHTML = `<div class="space-y-4 max-w-3xl animate-fade-in">${data.reviews.map(r => `
+                    <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex gap-4">
+                        <div class="flex-shrink-0 w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center font-bold text-slate-500">?</div>
+                        <div>
+                            <div class="flex items-center gap-2 mb-1">
+                                <div class="flex text-yellow-400 text-xs">${Array(5).fill(0).map((_,i) => i < r.rating ? '<i class="fa-solid fa-star"></i>' : '<i class="fa-regular fa-star text-gray-200"></i>').join('')}</div>
+                                <span class="text-xs text-slate-400 font-bold">&bull; ${new Date(r.created_at).toLocaleDateString()}</span>
+                            </div>
+                            <p class="text-slate-700 italic text-sm">"${r.comment}"</p>
+                        </div>
+                    </div>`).join('')}</div>`;
+            } else if(tab === 'about') {
+                container.innerHTML = `<div class="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm max-w-3xl animate-fade-in"><h3 class="font-bold text-slate-800 text-lg mb-4">About Me</h3><div class="prose text-slate-600 leading-relaxed">${data.user.provider_profile.bio || 'No bio provided.'}</div></div>`;
+            }
+        },
+
+        renderCustomerView: () => {
+            const joined = new Date(Profile.data.user.date_joined).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+            document.getElementById('profile-body').innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8 animate-fade-in">
+                    <div class="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm text-center">
+                        <div class="w-16 h-16 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center text-2xl mx-auto mb-4"><i class="fa-solid fa-shield-halved"></i></div>
+                        <h3 class="font-bold text-slate-800 text-lg mb-1">Verified Buyer</h3>
+                        <p class="text-slate-500 text-sm">Member since ${joined}</p>
+                    </div>
+                    <div class="md:col-span-2 bg-slate-50 rounded-3xl border border-dashed border-slate-200 flex flex-col items-center justify-center p-12 text-center">
+                        <i class="fa-solid fa-lock text-3xl text-slate-300 mb-3"></i>
+                        <h3 class="font-bold text-slate-400">Activity is Private</h3>
+                        <p class="text-sm text-slate-400">To protect user privacy, transaction history is not public.</p>
+                    </div>
+                </div>`;
+        },
+
+        openGig: (id) => {
+            const s = Profile.data.services.find(x => x.id === id);
+            if(!s) return;
+            UI.toggleModal('gig-modal', true);
+            const content = document.getElementById('gig-content');
+            
+            const isOwner = currentUser && currentUser.username === s.provider_detail.username;
+            const sidebar = isOwner ? 
+                `<div class="bg-slate-50 p-6 rounded-2xl border border-slate-200 text-center"><h3 class="font-bold text-slate-800 mb-2">Manage Service</h3><p class="text-xs text-slate-500 mb-4">This is your service listing.</p><a href="/provider/#gigs" class="block bg-slate-800 text-white py-3 rounded-xl font-bold hover:bg-black transition">Edit in Dashboard</a></div>` :
+                `<div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-lg sticky top-6"><div class="flex justify-between items-center mb-6"><span class="text-3xl font-extrabold text-slate-900">$${s.price}</span></div><form onsubmit="Profile.bookService(event, '${s.id}')" class="space-y-4"><input type="datetime-local" id="book-date" class="w-full p-3 border rounded-xl" required><div id="mini-map" class="h-40 rounded-xl bg-slate-100"></div><input type="hidden" id="book-lat" value="0"><input type="hidden" id="book-lng" value="0"><button type="button" onclick="Profile.locateUser()" class="text-xs font-bold text-brand hover:underline">Use Current Location</button><textarea id="book-desc" class="w-full p-3 border rounded-xl" placeholder="Notes..." rows="3"></textarea><button class="w-full bg-slate-900 text-white py-3.5 rounded-xl font-bold">Request Appointment</button></form></div>`;
+
+            content.innerHTML = `<div class="lg:col-span-2 space-y-6"><h1 class="text-3xl font-extrabold text-slate-900">${s.title}</h1><div class="bg-slate-50 rounded-2xl overflow-hidden shadow-sm border border-gray-100"><img src="${s.image}" class="w-full object-contain"></div><div class="prose text-slate-600">${s.description}</div></div><div class="lg:col-span-1">${sidebar}</div>`;
+
+            if(!isOwner) {
+                setTimeout(() => {
+                    const map = L.map('mini-map').setView([40.7128, -74.0060], 10);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                    map.on('click', e => { 
+                        if(window.miniMarker) map.removeLayer(window.miniMarker);
+                        window.miniMarker = L.marker(e.latlng).addTo(map); 
+                        document.getElementById('book-lat').value = e.latlng.lat; 
+                        document.getElementById('book-lng').value = e.latlng.lng; 
+                    });
+                    setTimeout(() => map.invalidateSize(), 100);
+                }, 300);
+            }
+        },
+
+        openCreateModal: async () => {
+            UI.toggleModal('create-modal', true);
+            const cats = await API.fetch('/services/categories/');
+            document.getElementById('c-cat').innerHTML = cats.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+            
+            if(!quill) {
+                quill = new Quill('#editor-container', {
+                    theme: 'snow', placeholder: 'Describe your service...', modules: { toolbar: [['bold', 'italic'], [{ 'list': 'ordered'}, { 'list': 'bullet' }]] }
+                });
+            }
+            quill.setText('');
+
+            setTimeout(() => {
+                if(!createMap) {
+                    createMap = L.map('create-map').setView([40.7128, -74.0060], 13);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(createMap);
+                    createMap.on('click', e => { 
+                        if(createMarker) createMap.removeLayer(createMarker); 
+                        createMarker = L.marker(e.latlng).addTo(createMap); 
+                        document.getElementById('c-lat').value = e.latlng.lat; 
+                        document.getElementById('c-lng').value = e.latlng.lng; 
+                    });
+                }
+                createMap.invalidateSize();
+            }, 300);
+        },
+
+        submitService: async (e) => {
+            e.preventDefault();
+            const fd = new FormData();
+            fd.append('title', document.getElementById('c-title').value);
+            fd.append('category_id', document.getElementById('c-cat').value);
+            fd.append('price', document.getElementById('c-price').value);
+            fd.append('description', quill.root.innerHTML);
+            const lat = document.getElementById('c-lat').value;
+            if(lat) { fd.append('location_lat', lat); fd.append('location_long', document.getElementById('c-lng').value); }
+            if(document.getElementById('c-img').files[0]) fd.append('image', document.getElementById('c-img').files[0]);
+
+            const res = await API.fetch('/services/create/', 'POST', fd, true);
+            if(res && res.id) {
+                UI.toggleModal('create-modal', false);
+                UI.toast("Service Created!");
+                Profile.init();
+            } else { alert("Error creating service."); }
+        },
+
+        locateUser: () => {
+            navigator.geolocation.getCurrentPosition(pos => {
+                document.getElementById('book-lat').value = pos.coords.latitude;
+                document.getElementById('book-lng').value = pos.coords.longitude;
+                UI.toast("Location captured!");
+            });
+        },
+
+        bookService: async (e, id) => {
+            e.preventDefault();
+            if(!currentUser) { UI.toggleModal('gig-modal', false); window.location.href = '/login/'; return; }
+            const payload = {
+                service_id: id, scheduled_date: document.getElementById('book-date').value,
+                latitude: document.getElementById('book-lat').value, longitude: document.getElementById('book-lng').value,
+                address: "Pinned Location", description: document.getElementById('book-desc').value
+            };
+            const bookingRes = await API.fetch('/bookings/create/', 'POST', payload);
+            if(bookingRes && bookingRes.id) {
+                await API.fetch(`/payments/initiate-cash/${bookingRes.id}/`, 'POST');
+                UI.toggleModal('gig-modal', false);
+                UI.toast("Request Sent!");
+                Profile.renderHeader(); // Refresh to update "Message" button
+            }
+        },
+
+        uploadImage: async (field, input) => {
+            if (!input.files || !input.files[0]) return;
+            const formData = new FormData();
+            formData.append(field, input.files[0]);
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                if(field === 'cover_image') document.getElementById('cover-img').src = e.target.result;
+                else document.getElementById('profile-img').src = e.target.result;
+            };
+            reader.readAsDataURL(input.files[0]);
+
+            const res = await API.fetch('/auth/profile/', 'PATCH', formData, true);
+            if(res && res.id) {
+                const currentUser = JSON.parse(localStorage.getItem('user'));
+                currentUser[field] = res[field]; 
+                localStorage.setItem('user', JSON.stringify(currentUser));
+                UI.toast("Image updated!");
+            }
+        }
+    };
+
+    Profile.init();
+</script>
+{% endblock %}

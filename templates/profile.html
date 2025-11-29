@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+
+{% block title %}LocalPro | Profile{% endblock %}
+
+{% block content %}
+<main class="max-w-3xl mx-auto px-6 py-12">
+    <div class="flex justify-between items-center mb-8">
+        <h1 class="text-3xl font-extrabold text-slate-800">Account Settings</h1>
+        <a id="public-link" href="#" class="text-brand font-bold text-sm hover:underline flex items-center gap-1">
+            View Public Profile <i class="fa-solid fa-arrow-up-right-from-square"></i>
+        </a>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <form id="profile-form" onsubmit="Profile.save(event)">
+            <div class="p-8 border-b border-gray-100 flex items-center gap-6">
+                <img id="p-avatar" src="https://via.placeholder.com/100" class="w-24 h-24 rounded-full object-cover border-4 border-slate-50">
+                <div>
+                    <h3 class="font-bold text-lg" id="p-username-display">Loading...</h3>
+                    <p class="text-sm text-gray-400 mb-3">To change your avatar or cover photo, visit your <a id="public-link-2" href="#" class="text-brand hover:underline">Public Profile</a>.</p>
+                </div>
+            </div>
+            <div class="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div><label class="block text-xs font-bold uppercase text-gray-400 mb-1">Email</label><input id="p-email" class="w-full p-3 border rounded-lg bg-gray-50 text-gray-500" readonly></div>
+                <div><label class="block text-xs font-bold uppercase text-gray-400 mb-1">Username</label><input id="p-username" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand outline-none transition"></div>
+                <div class="md:col-span-2"><label class="block text-xs font-bold uppercase text-gray-400 mb-1">Address (Private)</label><input id="p-address" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand outline-none transition"></div>
+                <div><label class="block text-xs font-bold uppercase text-gray-400 mb-1">Phone (Private)</label><input id="p-phone" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand outline-none transition"></div>
+            </div>
+            <div class="p-6 bg-gray-50 border-t border-gray-200 flex justify-end">
+                <button class="bg-brand text-white px-8 py-3 rounded-xl font-bold shadow-lg hover:bg-green-600 transition">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</main>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    const API_URL = 'http://127.0.0.1:8000/api/v1';
+    let token = localStorage.getItem('token');
+
+    const API = {
+        fetch: async (endpoint, method='GET', body=null) => {
+            const opts = { method, headers: { 'Authorization': `Bearer ${token}` } };
+            if(body instanceof FormData) opts.body = body; else { opts.headers['Content-Type'] = 'application/json'; if(body) opts.body = JSON.stringify(body); }
+            try { return await (await fetch(API_URL + endpoint, opts)).json(); } catch(e) { return null; }
+        }
+    };
+
+    const Profile = {
+        init: async () => {
+            const user = await API.fetch('/auth/profile/');
+            if(user) {
+                // Update Links
+                const link = `/public-profile.html?u=${user.username}`;
+                document.getElementById('public-link').href = link;
+                document.getElementById('public-link-2').href = link;
+
+                // Populate Form
+                document.getElementById('p-email').value = user.email;
+                document.getElementById('p-username').value = user.username;
+                document.getElementById('p-username-display').innerText = user.username;
+                if(user.profile_image) document.getElementById('p-avatar').src = user.profile_image;
+                
+                if(user.customer_profile) {
+                    document.getElementById('p-address').value = user.customer_profile.address || '';
+                    document.getElementById('p-phone').value = user.customer_profile.phone_number || '';
+                }
+            }
+        },
+        save: async (e) => {
+            e.preventDefault();
+            const jsonData = {
+                username: document.getElementById('p-username').value,
+                customer_profile: { address: document.getElementById('p-address').value, phone_number: document.getElementById('p-phone').value }
+            };
+            const res = await API.fetch('/auth/profile/', 'PATCH', jsonData);
+            if(res && res.id) {
+                alert('Saved successfully!');
+                // Update local storage if username changed
+                let currentUser = JSON.parse(localStorage.getItem('user'));
+                currentUser.username = res.username;
+                localStorage.setItem('user', JSON.stringify(currentUser));
+            } else {
+                alert('Error saving profile.');
+            }
+        }
+    };
+    Profile.init();
+</script>
+{% endblock %}

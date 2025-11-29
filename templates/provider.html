@@ -1,0 +1,208 @@
+{% extends 'base.html' %}
+
+{% block title %}LocalPro | Provider Dashboard{% endblock %}
+
+{% block extra_head %}
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="flex min-h-screen bg-slate-50">
+    {% include 'partials/provider_sidebar.html' %}
+
+    <div class="flex-1 md:ml-64">
+        <header class="bg-white h-20 px-8 flex items-center justify-between sticky top-0 z-10 border-b border-gray-200 shadow-sm">
+            <h2 class="text-xl font-extrabold text-slate-800" id="page-title">Dashboard</h2>
+            <div class="w-10 h-10 rounded-full bg-brand text-white flex items-center justify-center font-bold">P</div>
+        </header>
+        <main class="p-8 max-w-7xl mx-auto" id="workspace"></main>
+    </div>
+</div>
+
+<div id="gig-modal" class="fixed inset-0 bg-slate-900/50 hidden z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl p-8 max-h-[90vh] overflow-y-auto relative">
+        <h2 class="text-2xl font-bold mb-6 text-slate-800" id="modal-title">Create Service</h2>
+        <form onsubmit="Dashboard.submitGig(event)" class="space-y-6">
+            <input type="hidden" id="g-id">
+            <div>
+                <label class="block text-sm font-bold text-slate-700 mb-1">Service Title</label>
+                <input id="g-title" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand outline-none transition" placeholder="e.g. I will fix your leaky faucet" required>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div><label class="block text-sm font-bold text-slate-700 mb-1">Category</label><select id="g-cat" class="w-full p-3 border border-gray-300 rounded-xl bg-white"></select></div>
+                <div><label class="block text-sm font-bold text-slate-700 mb-1">Price ($)</label><input id="g-price" type="number" class="w-full p-3 border border-gray-300 rounded-xl" required></div>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-bold text-slate-700 mb-1">Description</label>
+                <div class="bg-white rounded-xl border border-gray-300 overflow-hidden">
+                    <div id="editor-container" class="h-40 font-sans text-base"></div>
+                </div>
+            </div>
+
+            <div><label class="block text-sm font-bold text-slate-700 mb-1">Location</label><div id="map-gig" class="h-48 rounded-xl border border-gray-300 overflow-hidden"></div><input type="hidden" id="g-lat"><input type="hidden" id="g-lng"></div>
+            <div><label class="block text-sm font-bold text-slate-700 mb-1">Cover Image</label><input id="g-img" type="file" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:bg-brand/10 file:text-brand"></div>
+            <button class="w-full bg-brand text-white py-3.5 rounded-xl font-bold">Publish Service</button>
+        </form>
+        <button onclick="document.getElementById('gig-modal').classList.add('hidden')" class="absolute top-4 right-4 text-gray-400"><i class="fa-solid fa-xmark text-xl"></i></button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+
+<script>
+    const API_URL = 'http://127.0.0.1:8000/api/v1';
+    let token = localStorage.getItem('token');
+    let user = JSON.parse(localStorage.getItem('user'));
+    let map = null, marker = null;
+    
+    // PHASE 4 UPDATE: Initialize Global Quill Variable
+    let quill = null;
+
+    if(!token || !user.is_provider) window.location.href = '/';
+
+    const API = {
+        fetch: async (endpoint, method='GET', body=null) => {
+            const opts = { method, headers: { 'Authorization': `Bearer ${token}` } };
+            if(body instanceof FormData) opts.body = body; else { opts.headers['Content-Type'] = 'application/json'; if(body) opts.body = JSON.stringify(body); }
+            try { return await (await fetch(API_URL + endpoint, opts)).json(); } catch(e) { return null; }
+        }
+    };
+
+    const Dashboard = {
+        render: async (view) => {
+            const ws = document.getElementById('workspace');
+            document.getElementById('page-title').innerText = view === 'gigs' ? 'My Services' : view.toUpperCase();
+            ws.innerHTML = '<div class="py-20 text-center text-gray-400"><i class="fa-solid fa-circle-notch fa-spin text-3xl mb-3"></i><p>Loading...</p></div>';
+
+            if(view === 'overview') {
+                const orders = await API.fetch('/bookings/my-bookings/');
+                const earnings = orders.reduce((acc, o) => acc + (o.status === 'COMPLETED' ? parseFloat(o.price) : 0), 0);
+                const pending = orders.filter(o => o.status === 'REQUESTED').length;
+                const completed = orders.filter(o => o.status === 'COMPLETED').length;
+
+                ws.innerHTML = `
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                        <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-xl"><i class="fa-solid fa-sack-dollar"></i></div>
+                                <div><p class="text-gray-400 font-bold text-xs uppercase">Total Earnings</p><h3 class="text-2xl font-extrabold text-slate-800">$${earnings.toFixed(2)}</h3></div>
+                            </div>
+                        </div>
+                        <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                             <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xl"><i class="fa-solid fa-hourglass-half"></i></div>
+                                <div><p class="text-gray-400 font-bold text-xs uppercase">Pending Requests</p><h3 class="text-2xl font-extrabold text-slate-800">${pending}</h3></div>
+                            </div>
+                        </div>
+                        <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                             <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center text-xl"><i class="fa-solid fa-clipboard-check"></i></div>
+                                <div><p class="text-gray-400 font-bold text-xs uppercase">Jobs Done</p><h3 class="text-2xl font-extrabold text-slate-800">${completed}</h3></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                        <h3 class="font-bold text-slate-800 mb-4">Weekly Performance</h3>
+                        <div class="h-64"><canvas id="earningsChart"></canvas></div>
+                    </div>`;
+
+                new Chart(document.getElementById('earningsChart'), {
+                    type: 'line',
+                    data: {
+                        labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                        datasets: [{
+                            label: 'Revenue ($)',
+                            data: [earnings * 0.1, earnings * 0.2, earnings * 0.05, 0, earnings * 0.15, 0, earnings * 0.5],
+                            borderColor: '#1dbf73',
+                            backgroundColor: 'rgba(29, 191, 115, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }]
+                    },
+                    options: { maintainAspectRatio: false, responsive: true }
+                });
+
+            } else if(view === 'gigs') {
+                const services = await API.fetch('/services/search/');
+                const myGigs = services.filter(s => s.provider_detail.username === user.username);
+                ws.innerHTML = `<button onclick="Dashboard.openModal()" class="bg-brand text-white px-6 py-3 rounded-xl font-bold mb-6 shadow-lg hover:bg-green-600 transition flex items-center gap-2"><i class="fa-solid fa-plus"></i> Create Service</button>` + 
+                    (myGigs.length ? myGigs.map(g => `<div class="bg-white p-5 rounded-2xl border border-gray-200 mb-4 flex justify-between items-center shadow-sm"><div class="flex items-center gap-4"><img src="${g.image || 'https://via.placeholder.com/150'}" class="w-16 h-16 rounded-xl object-cover bg-slate-100"><div><h4 class="font-bold text-lg text-slate-800">${g.title}</h4><p class="text-brand font-extrabold">$${g.price}</p></div></div><button onclick="Dashboard.edit('${g.id}')" class="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center text-slate-400 hover:text-brand hover:border-brand transition"><i class="fa-solid fa-pen-to-square"></i></button></div>`).join('') : '<div class="text-center py-20 text-gray-400">No services yet.</div>');
+            } else if(view === 'settings') {
+                const profile = await API.fetch('/auth/profile/');
+                const pp = profile.provider_profile || {};
+                ws.innerHTML = `
+                    <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 max-w-2xl">
+                        <h3 class="text-xl font-bold mb-6">Availability Settings</h3>
+                        <form onsubmit="Dashboard.saveSettings(event)">
+                            <div class="grid grid-cols-2 gap-6 mb-6">
+                                <div><label class="block text-sm font-bold text-slate-700 mb-2">Start Time</label><input type="time" id="s-start" value="${pp.working_start || '09:00'}" class="w-full p-3 border rounded-xl bg-slate-50"></div>
+                                <div><label class="block text-sm font-bold text-slate-700 mb-2">End Time</label><input type="time" id="s-end" value="${pp.working_end || '17:00'}" class="w-full p-3 border rounded-xl bg-slate-50"></div>
+                            </div>
+                            <button class="bg-slate-900 text-white px-8 py-3 rounded-xl font-bold hover:bg-slate-700 transition">Save Hours</button>
+                        </form>
+                    </div>`;
+            }
+        },
+        saveSettings: async (e) => {
+            e.preventDefault();
+            const res = await API.fetch('/auth/profile/', 'PATCH', { provider_profile: { working_start: document.getElementById('s-start').value, working_end: document.getElementById('s-end').value } });
+            if(res && res.id) { alert("Settings Saved!"); user.provider_profile = res.provider_profile; localStorage.setItem('user', JSON.stringify(user)); }
+        },
+        openModal: async () => {
+            document.getElementById('g-id').value = ''; document.getElementById('modal-title').innerText = 'Create Service';
+            document.getElementById('gig-modal').classList.remove('hidden');
+            const cats = await API.fetch('/services/categories/');
+            document.getElementById('g-cat').innerHTML = cats.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+            
+            // PHASE 4 UPDATE: Init Quill Editor
+            if(!quill) {
+                quill = new Quill('#editor-container', {
+                    theme: 'snow',
+                    placeholder: 'Describe your service...',
+                    modules: { toolbar: [['bold', 'italic'], [{ 'list': 'ordered'}, { 'list': 'bullet' }]] }
+                });
+            }
+            quill.setText(''); // Clear editor
+
+            setTimeout(() => { if(map) map.remove(); map = L.map('map-gig').setView([40.7128, -74.0060], 13); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map); map.on('click', e => { if(marker) map.removeLayer(marker); marker = L.marker(e.latlng).addTo(map); document.getElementById('g-lat').value = e.latlng.lat; document.getElementById('g-lng').value = e.latlng.lng; }); }, 200);
+        },
+        edit: async (id) => {
+            const s = (await API.fetch('/services/search/')).find(x => x.id === id);
+            await Dashboard.openModal();
+            document.getElementById('modal-title').innerText = 'Edit Service';
+            document.getElementById('g-id').value = s.id; document.getElementById('g-title').value = s.title; document.getElementById('g-price').value = s.price;
+            
+            // PHASE 4 UPDATE: Load HTML into Quill
+            quill.root.innerHTML = s.description;
+
+            if(s.location_lat) { setTimeout(() => { const loc = [s.location_lat, s.location_long]; map.setView(loc, 13); if(marker) map.removeLayer(marker); marker = L.marker(loc).addTo(map); }, 300); }
+        },
+        submitGig: async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('g-id').value;
+            const fd = new FormData();
+            fd.append('title', document.getElementById('g-title').value);
+            fd.append('category_id', document.getElementById('g-cat').value);
+            fd.append('price', document.getElementById('g-price').value);
+            
+            // PHASE 4 UPDATE: Get HTML content from Quill
+            fd.append('description', quill.root.innerHTML);
+
+            const lat = document.getElementById('g-lat').value;
+            if(lat) { fd.append('location_lat', lat); fd.append('location_long', document.getElementById('g-lng').value); }
+            if(document.getElementById('g-img').files[0]) fd.append('image', document.getElementById('g-img').files[0]);
+            await API.fetch(id ? `/services/${id}/` : '/services/create/', id ? 'PATCH' : 'POST', fd);
+            document.getElementById('gig-modal').classList.add('hidden');
+            Dashboard.render('gigs');
+        }
+    };
+
+    const hash = window.location.hash.substring(1);
+    Dashboard.render(hash === 'gigs' || hash === 'settings' ? hash : 'overview');
+</script>
+{% endblock %}

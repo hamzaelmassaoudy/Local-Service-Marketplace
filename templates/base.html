@@ -1,0 +1,130 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}LocalPro{% endblock %}</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Manrope', 'sans-serif'] },
+                    colors: {
+                        brand: { DEFAULT: '#1dbf73', hover: '#19a463', dark: '#0f172a' },
+                        slate: { 850: '#1e293b' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Manrope', sans-serif; background-color: #f8fafc; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .modal { transition: opacity 0.2s ease-in-out; }
+        .modal-content { transform: scale(0.98); transition: transform 0.2s ease-out; }
+        .modal.active { opacity: 1; pointer-events: auto; }
+        .modal.active .modal-content { transform: scale(1); }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="text-slate-800 antialiased">
+
+    {% include 'partials/header.html' %}
+
+    {% block content %}
+    {% endblock %}
+
+    {% include 'partials/auth_modal.html' %}
+
+    <div id="toast-container" class="fixed bottom-6 left-6 z-[110] flex flex-col gap-3"></div>
+
+    {% block extra_scripts %}{% endblock %}
+
+    <script>
+        (function() {
+            const authSection = document.getElementById('auth-section');
+            // Prevent overwriting if a page has specific logic, but usually we want this global logic
+            if (!authSection) return;
+
+            const user = JSON.parse(localStorage.getItem('user'));
+            
+            if (user) {
+                authSection.innerHTML = `
+                    <div class="flex items-center gap-6">
+                        <a href="/messages/" class="relative text-gray-500 hover:text-brand transition p-1 group" title="Messages">
+                            <i class="fa-regular fa-envelope text-xl group-hover:scale-110 transition-transform"></i>
+                            </a>
+
+                        <div class="relative group cursor-pointer">
+                            <div class="flex items-center gap-3">
+                                <span class="hidden md:block font-bold text-slate-700 text-xs text-right">
+                                    ${user.username}<br>
+                                    <span class="text-[10px] text-gray-400 font-normal uppercase">${user.role || 'User'}</span>
+                                </span>
+                                <div class="w-10 h-10 rounded-full bg-slate-100 border border-gray-200 flex items-center justify-center font-bold text-brand shadow-sm overflow-hidden hover:ring-2 hover:ring-brand/20 transition">
+                                    <img src="${user.profile_image || 'https://ui-avatars.com/api/?name=' + user.username}" class="w-full h-full object-cover">
+                                </div>
+                            </div>
+                            
+                            <div class="absolute right-0 top-full pt-2 w-64 hidden group-hover:block z-[100]">
+                                <div class="bg-white rounded-xl shadow-xl border border-gray-100 p-2 space-y-1 transform transition-all duration-200 origin-top-right">
+                                    
+                                    <div class="px-4 py-3 border-b border-gray-50 mb-1 bg-slate-50/50 rounded-t-lg">
+                                        <p class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Signed in as</p>
+                                        <p class="font-bold text-slate-800 truncate">${user.username}</p>
+                                    </div>
+
+                                    ${user.is_provider ? `
+                                    <a href="/provider/" class="block px-4 py-2 hover:bg-brand/5 hover:text-brand text-sm text-gray-700 rounded-lg transition font-medium">
+                                        <i class="fa-solid fa-chart-pie mr-3 w-4 text-center"></i> Dashboard
+                                    </a>` : ''}
+                                    
+                                    <a href="/public-profile.html?u=${user.username}" class="block px-4 py-2 hover:bg-brand/5 hover:text-brand text-sm text-gray-700 rounded-lg transition font-medium">
+                                        <i class="fa-regular fa-id-card mr-3 w-4 text-center"></i> My Profile
+                                    </a>
+                                    
+                                    <a href="/messages/" class="block px-4 py-2 hover:bg-brand/5 hover:text-brand text-sm text-gray-700 rounded-lg transition font-medium">
+                                        <i class="fa-regular fa-envelope mr-3 w-4 text-center"></i> Messages
+                                    </a>
+
+                                    <a href="/profile/" class="block px-4 py-2 hover:bg-slate-50 text-sm text-gray-700 rounded-lg transition font-medium">
+                                        <i class="fa-solid fa-gear mr-3 w-4 text-center"></i> Settings
+                                    </a>
+                                    
+                                    <div class="border-t border-gray-50 my-1"></div>
+                                    
+                                    <a onclick="GlobalAuth.logout()" class="block px-4 py-2 hover:bg-red-50 hover:text-red-600 rounded-lg text-sm transition cursor-pointer text-gray-600 font-medium">
+                                        <i class="fa-solid fa-arrow-right-from-bracket mr-3 w-4 text-center"></i> Logout
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                authSection.innerHTML = `
+                    <div class="flex items-center gap-4">
+                        <a href="/login/" class="text-slate-600 hover:text-brand font-bold transition text-sm">Sign In</a>
+                        <a href="/register/" class="px-6 py-2.5 rounded-full bg-slate-900 text-white font-bold hover:bg-slate-800 shadow-lg hover:shadow-xl transition transform hover:-translate-y-0.5 text-sm">Join</a>
+                    </div>
+                `;
+            }
+
+            window.GlobalAuth = {
+                logout: () => {
+                    localStorage.clear();
+                    window.location.href = '/login/';
+                }
+            };
+        })();
+    </script>
+</body>
+</html>

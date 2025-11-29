@@ -1,0 +1,11 @@
+<div id="auth-modal" class="modal fixed inset-0 bg-slate-900/60 z-[60] hidden flex items-center justify-center opacity-0 pointer-events-none backdrop-blur-sm">
+    <div class="modal-content bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden relative">
+        <button onclick="UI.toggleModal('auth-modal', false)" class="absolute top-4 right-4 text-gray-400 hover:text-red-500 transition">
+            <i class="fa-solid fa-xmark text-xl"></i>
+        </button>
+        <div class="p-8">
+            <h2 class="text-2xl font-extrabold text-slate-800 mb-6 text-center" id="auth-title">Welcome Back</h2>
+            <div id="auth-body"></div>
+        </div>
+    </div>
+</div>

@@ -14,6 +14,7 @@ SECRET_KEY = 'django-insecure-change-me-later-for-production'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
+# CHANGED: Allow all hosts for easiest deployment (Render/Heroku)
 ALLOWED_HOSTS = ["*"]
 
 
@@ -48,6 +49,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware', # <--- ADDED: Serve Static Files
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware', # Add CORS here
     'django.middleware.common.CommonMiddleware',
@@ -133,6 +135,12 @@ STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 # Media Files (User Uploads: Avatars, IDs, Service Images)
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# --- CHANGED: Deployment Configuration ---
+# This tells Django where to put files when running "collectstatic"
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+# This enables WhiteNoise to serve them efficiently
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 
 # Default primary key field type
